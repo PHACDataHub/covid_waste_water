@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1601922217749.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "428E8F38",
+    "lastKnownWriteTime" : 1601922670,
+    "last_content_update" : 1601922670683,
+    "path" : "~/Projects/covid_waste_water/functions.r",
+    "project_path" : "functions.r",
+    "properties" : {
+        "cursorPosition" : "239,32",
+        "scrollLine" : "217"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+#Ignore the data dir
+data/
+
+
+# Ignore All (xlsx) files
+*.xlsx
+*.xls
