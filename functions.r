@@ -1,5 +1,5 @@
 
-if (exists("destroy_environment")) destroy_environment()
+#if (exists("destroy_environment")) destroy_environment()
 
   
 source(file.path("utils.r"))
@@ -214,168 +214,168 @@ adjust_case_by_positive_rate <- function(df2, tests){
 }
 
 
-
-
-
-
-
-
-
-
-df <- read_HPOC_cases_data()
-df2 <- df %>% do_impute_on_cols()
-
-###################
-# adjust for tests
-tests <- read_Ottawa_community_data()
-df3 <- df2 %>% adjust_case_by_positive_rate(tests = tests)
-
-
-
-df_onset <- 
-  df3 %>% 
-  filter(! is.na(onsetdate_imputed)) %>% 
-  group_by(onsetdate_imputed) %>%
-  summarise(n = sum(case_multiplier)) %>%
-#  count(onsetdate_imputed) %>% 
-  rename(date := onsetdate_imputed
-         )
-
-
-virus_stool_weeks_after_onset <- 
-  c(5.975077881619939
-    , 7.218068535825546
-    , 7
-    , 9.965732087227416
-    , 2.0498442367601246
-    , 1.0249221183800623
-    , 1.0249221183800623)
-
-
-
-df_shedding <- 
-  df_onset %>%
-  bind_cols(tibble(name = paste0("week_",1:length(virus_stool_weeks_after_onset)), value = virus_stool_weeks_after_onset) %>% pivot_wider()) %>% 
-  pivot_longer(matches("^week_")) %>% 
-  mutate(week = as.numeric(gsub(pattern = "week_", replacement = "", x = name))) %>% 
-  mutate(date_start = date + 7*(week - 1)) %>% 
-  mutate(date_end = date_start + (7*week)-1) %>% 
-  mutate(shedding = n * value)%>% 
-  select(date_start, date_end, shedding)
-
-lapply(1:7, function(i){
-  df_shedding[paste0("day_",i)] <<-  df_shedding[["date_start"]] + i - 1
-})
-
-df_shedding_onset <- 
-  df_shedding %>% 
-  pivot_longer(matches("^day_")) %>% 
-  group_by(value) %>%
-  summarise(shedding = sum(shedding)) %>%
-  rename(date := value) %>% 
-  full_join(df_onset) 
-
-ropec <- read_ropec_data() %>% mutate(n_avg = (n1_avg+n2_avg)/2 )
-
-
-
-
-
-
-
-
-
-
-
-
-full_join(df_onset, tests) 
-
-
-
-
-read_Ottawa_community_data()
-
-df_shedding$date_start %>% is.na() %>% sum()
-
-
-
-
-
-df_shedding_onset %>% 
-  pivot_longer(cols = c("shedding", "onset")) %>%
-  ggplot(aes(x = date, y = value, fill = name)) + geom_col() +
-  facet_grid(rows = vars(name), scales = "free_y")
-
-  
-ropec <- ropec %>% mutate(n_avg = (n1_avg+n2_avg)/2 )
-
-df_shedding_onset %>% 
-  full_join(ropec, by = "date") %>% 
-  GGally::ggpairs()
-
-
-
-
-df2 %>% 
-  count(labspecimencollectiondate1_imputed) %>% 
-  rename(date := labspecimencollectiondate1_imputed) %>% 
-  full_join(tests, by = "date") %>% 
-  select(date, n, postitive_tests) %>% 
-  arrange(date) %>%
-  replace_na(list(n = 0, postitive_tests = 0)) %>% 
-  mutate(n_cum = cumsum(n),
-         postitive_tests_cum = cumsum(postitive_tests))  %>% 
-  pivot_longer(cols = c("n_cum", "postitive_tests_cum")) %>%   
-  ggplot(aes(x = date, y = value, color = name)) + geom_line() #+
-  facet_grid(cols = vars(name))
-
-  map_df(function(x){sum(x)})
-  pivot_longer(cols = c("n", "postitive_tests")) %>% 
-  ggplot(aes(x = date, y = value, fill = name)) + geom_col() +
-  facet_grid(cols = vars(name))
-
-
-
-  
-full_join(tests, )
-
-
-df = do_impute_on_cases_data()
-df_counts <- df %>% 
-  rename(date := !!sym("labspecimencollectiondate1")) %>% 
-  count(date) 
-dt_rng <- df_counts$date %>% range()
-
-dts <- tibble(date = seq(from = as.Date(dt_rng[1]), to = as.Date(dt_rng[2]), by = 1) )
-
-dts %>% 
-  left_join(df_counts) %>% 
-  replace_na(list(n = 0))
-
-
-
-df %>% 
-  select("onsetdate", "labspecimencollectiondate1") %>% 
-  pivot_longer(cols = c("onsetdate", "labspecimencollectiondate1")) %>% 
-  ggplot(aes(x = value, fill = name)) + geom_density(alpha = 0.5)
-
-
-
-df %>% 
-  select("onsetdate", "labspecimencollectiondate1") %>% 
-  mutate(onset_to_testing = labspecimencollectiondate1- onsetdate) %>% 
-  ggplot(aes(x = onset_to_testing)) + geom_density(alpha = 0.5)
-
-
-df %>% 
-  select("onsetdate", "phacreporteddate") %>% 
-  mutate(onset_to_reporting = phacreporteddate- onsetdate) %>% 
-  ggplot(aes(x = onset_to_reporting)) + geom_density(alpha = 0.5)
-
-df %>% 
-  select("onsetdate", "labspecimencollectiondate1") %>% 
-  mutate(onset_to_testing = labspecimencollectiondate1- onsetdate) %>% 
-  ggplot(aes(y = onset_to_testing, x = onsetdate)) + geom_point()
-
-
-df_test <- read_Ottawa_community_data()
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# df <- read_HPOC_cases_data()
+# df2 <- df %>% do_impute_on_cols()
+# 
+# ###################
+# # adjust for tests
+# tests <- read_Ottawa_community_data()
+# df3 <- df2 %>% adjust_case_by_positive_rate(tests = tests)
+# 
+# 
+# 
+# df_onset <- 
+#   df3 %>% 
+#   filter(! is.na(onsetdate_imputed)) %>% 
+#   group_by(onsetdate_imputed) %>%
+#   summarise(n = sum(case_multiplier)) %>%
+# #  count(onsetdate_imputed) %>% 
+#   rename(date := onsetdate_imputed
+#          )
+# 
+# 
+# virus_stool_weeks_after_onset <- 
+#   c(5.975077881619939
+#     , 7.218068535825546
+#     , 7
+#     , 9.965732087227416
+#     , 2.0498442367601246
+#     , 1.0249221183800623
+#     , 1.0249221183800623)
+# 
+# 
+# 
+# df_shedding <- 
+#   df_onset %>%
+#   bind_cols(tibble(name = paste0("week_",1:length(virus_stool_weeks_after_onset)), value = virus_stool_weeks_after_onset) %>% pivot_wider()) %>% 
+#   pivot_longer(matches("^week_")) %>% 
+#   mutate(week = as.numeric(gsub(pattern = "week_", replacement = "", x = name))) %>% 
+#   mutate(date_start = date + 7*(week - 1)) %>% 
+#   mutate(date_end = date_start + (7*week)-1) %>% 
+#   mutate(shedding = n * value)%>% 
+#   select(date_start, date_end, shedding)
+# 
+# lapply(1:7, function(i){
+#   df_shedding[paste0("day_",i)] <<-  df_shedding[["date_start"]] + i - 1
+# })
+# 
+# df_shedding_onset <- 
+#   df_shedding %>% 
+#   pivot_longer(matches("^day_")) %>% 
+#   group_by(value) %>%
+#   summarise(shedding = sum(shedding)) %>%
+#   rename(date := value) %>% 
+#   full_join(df_onset) 
+# 
+# ropec <- read_ropec_data() %>% mutate(n_avg = (n1_avg+n2_avg)/2 )
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# full_join(df_onset, tests) 
+# 
+# 
+# 
+# 
+# read_Ottawa_community_data()
+# 
+# df_shedding$date_start %>% is.na() %>% sum()
+# 
+# 
+# 
+# 
+# 
+# df_shedding_onset %>% 
+#   pivot_longer(cols = c("shedding", "onset")) %>%
+#   ggplot(aes(x = date, y = value, fill = name)) + geom_col() +
+#   facet_grid(rows = vars(name), scales = "free_y")
+# 
+#   
+# ropec <- ropec %>% mutate(n_avg = (n1_avg+n2_avg)/2 )
+# 
+# df_shedding_onset %>% 
+#   full_join(ropec, by = "date") %>% 
+#   GGally::ggpairs()
+# 
+# 
+# 
+# 
+# df2 %>% 
+#   count(labspecimencollectiondate1_imputed) %>% 
+#   rename(date := labspecimencollectiondate1_imputed) %>% 
+#   full_join(tests, by = "date") %>% 
+#   select(date, n, postitive_tests) %>% 
+#   arrange(date) %>%
+#   replace_na(list(n = 0, postitive_tests = 0)) %>% 
+#   mutate(n_cum = cumsum(n),
+#          postitive_tests_cum = cumsum(postitive_tests))  %>% 
+#   pivot_longer(cols = c("n_cum", "postitive_tests_cum")) %>%   
+#   ggplot(aes(x = date, y = value, color = name)) + geom_line() #+
+#   facet_grid(cols = vars(name))
+# 
+#   map_df(function(x){sum(x)})
+#   pivot_longer(cols = c("n", "postitive_tests")) %>% 
+#   ggplot(aes(x = date, y = value, fill = name)) + geom_col() +
+#   facet_grid(cols = vars(name))
+# 
+# 
+# 
+#   
+# full_join(tests, )
+# 
+# 
+# df = do_impute_on_cases_data()
+# df_counts <- df %>% 
+#   rename(date := !!sym("labspecimencollectiondate1")) %>% 
+#   count(date) 
+# dt_rng <- df_counts$date %>% range()
+# 
+# dts <- tibble(date = seq(from = as.Date(dt_rng[1]), to = as.Date(dt_rng[2]), by = 1) )
+# 
+# dts %>% 
+#   left_join(df_counts) %>% 
+#   replace_na(list(n = 0))
+# 
+# 
+# 
+# df %>% 
+#   select("onsetdate", "labspecimencollectiondate1") %>% 
+#   pivot_longer(cols = c("onsetdate", "labspecimencollectiondate1")) %>% 
+#   ggplot(aes(x = value, fill = name)) + geom_density(alpha = 0.5)
+# 
+# 
+# 
+# df %>% 
+#   select("onsetdate", "labspecimencollectiondate1") %>% 
+#   mutate(onset_to_testing = labspecimencollectiondate1- onsetdate) %>% 
+#   ggplot(aes(x = onset_to_testing)) + geom_density(alpha = 0.5)
+# 
+# 
+# df %>% 
+#   select("onsetdate", "phacreporteddate") %>% 
+#   mutate(onset_to_reporting = phacreporteddate- onsetdate) %>% 
+#   ggplot(aes(x = onset_to_reporting)) + geom_density(alpha = 0.5)
+# 
+# df %>% 
+#   select("onsetdate", "labspecimencollectiondate1") %>% 
+#   mutate(onset_to_testing = labspecimencollectiondate1- onsetdate) %>% 
+#   ggplot(aes(y = onset_to_testing, x = onsetdate)) + geom_point()
+# 
+# 
+# df_test <- read_Ottawa_community_data()

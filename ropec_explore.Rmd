@@ -1,0 +1,241 @@
+---
+title: "Covid ROPEC"
+author: "Data Hub"
+date: "05/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,  warning=FALSE, message=FALSE)
+```
+
+## R Markdown
+
+This file is looking at the ROPEC Covid Data along side the HPOC cases database trying to develop a relationship between the two.
+
+
+Load source files and the HPOC DATA
+
+```{r read-cases, message=FALSE, results='hide'}
+source(file.path("utils.r"))
+source(file.path("functions.r"))
+
+packages.get(c(
+  "cowplot",
+  "scales"
+))
+
+
+df <- read_HPOC_cases_data()
+
+summary(df)
+```
+
+Take a look at some of the NA data
+
+```{r check-na}
+sapply(df, function(x) sum(is.na(x))/length(x))
+```
+
+```{r delta_times}
+df %>% impute_deltas() %>% 
+  ggplot(aes(x = onsetdate_2_labspecimencollectiondate1)) + 
+  geom_density() +
+  scale_x_continuous(limits = c(-5, 25)) +
+  geom_vline(xintercept = 0, color = "red")
+```
+
+Impute the data
+```{r imput-data}
+df2 <- df %>% do_impute_on_cols()
+
+
+
+
+df2 %>% 
+   select(matches("onsetdate"), matches("labspecimencollectiondate")) %>% 
+   pivot_longer(., 1:ncol(.)) %>% 
+   arrange(value) %>% 
+   count(name, value) %>% 
+   group_by(name) %>% 
+   mutate(n_cum = cumsum(n)) %>%
+  ggplot(aes(x = value, y = n_cum, color = name)) + geom_point() #+theme(legend.position="bottom")
+
+```
+
+Compare HPOC to other data 
+
+```{r hpoc-vs-possitive-tests}
+tests <- read_Ottawa_community_data()
+
+
+df2 %>% 
+    select(matches("onsetdate"), matches("labspecimencollectiondate")) %>% 
+    pivot_longer(., 1:ncol(.)) %>% rename(date := value) %>%
+    count(name, date) %>% pivot_wider(names_from = "name", values_from = n, values_fill = 0) %>% 
+    full_join(tests %>% select(date, postitive_tests), by = "date") %>% 
+    pivot_longer(., 2:ncol(.)) %>% 
+    group_by(name) %>% 
+    arrange(date) %>%
+    replace_na(list(value = 0)) %>% 
+    mutate(n_cum = cumsum(value)) %>%
+  ggplot(aes(x = date, color = name, y = n_cum)) + geom_point()
+
+
+```
+
+
+Adjust by positive test rate
+```{r case-multiplier}
+###################
+# adjust for tests
+tests <- read_Ottawa_community_data()
+df3 <- df2 %>% adjust_case_by_positive_rate(tests = tests)
+
+
+p1 <- df3 %>% 
+  ggplot(aes(x = case_multiplier)) + geom_histogram() + coord_flip()
+
+p2 <- df3 %>%
+  ggplot(aes(x = onsetdate_imputed, y = case_multiplier)) + geom_point() + geom_smooth()
+
+plot_grid(p2, p1, labels = c('A', 'B'))
+
+
+```
+
+
+
+Calculate shedding
+```{r account-for-shedding}
+df_onset <-
+  df3 %>%
+  filter(! is.na(onsetdate_imputed)) %>%
+  group_by(onsetdate_imputed) %>%
+  summarise(
+    n_infect = sum(case_multiplier, na.rm = T),
+    n_case = n()) %>%
+#  count(onsetdate_imputed) %>%
+  rename(date := onsetdate_imputed
+         )
+
+#p1 <- df_onset %>% ggplot(aes(x = date, y = n)) + geom_point() + geom_line()
+
+
+virus_stool_weeks_after_onset <-
+  c(5.975077881619939
+    , 7.218068535825546
+    , 7
+    , 9.965732087227416
+    , 2.0498442367601246
+    , 1.0249221183800623
+    , 1.0249221183800623)
+
+
+
+df_shedding <-
+  df_onset %>%
+  bind_cols(tibble(name = paste0("week_",1:length(virus_stool_weeks_after_onset)), value = virus_stool_weeks_after_onset) %>% pivot_wider()) %>%
+  pivot_longer(matches("^week_")) %>%
+  mutate(week = as.numeric(gsub(pattern = "week_", replacement = "", x = name))) %>%
+  mutate(date_start = date + 7*(week - 1)) %>%
+  mutate(date_end = date_start + (7*week)-1) %>%
+  mutate(shedding_infect = n_infect * value,
+         shedding_case = n_case * value
+         ) %>%
+  select(date_start, date_end, shedding_infect, shedding_case)
+
+#df_shedding[paste0("day_",i)] <<-
+df_shedding <- 
+lapply(1:7, function(i){
+    tmp <- df_shedding[["date_start"]] + i - 1 
+    tmp <- tmp %>% as_tibble()
+    colnames(tmp) <- paste0("day_", i)
+    tmp
+}) %>% as.data.frame() %>% as.tibble() %>% bind_cols(df_shedding, .)
+
+df_shedding_onset <-
+  df_shedding %>%
+  pivot_longer(matches("^day_")) %>%
+  group_by(value) %>%
+  summarise(shedding_infect = sum(shedding_infect, na.rm = T), 
+            shedding_case = sum(shedding_case, na.rm = T)) %>%
+  rename(date := value) %>%
+  full_join(df_onset)
+
+
+
+# df_shedding_onset <- 
+#   df_shedding %>% 
+#   pivot_longer(matches("^day_")) %>% 
+#   group_by(value) %>%
+#   summarise(shedding = sum(shedding)) %>%
+#   rename(date := value) %>% 
+#   full_join(df_onset) 
+
+
+
+df_shedding_onset %>% #ggplot(aes(x = date, y = shedding)) + geom_point() + geom_line()
+  pivot_longer(cols = c("shedding_infect", "shedding_case", "n_infect", "n_case")) %>% 
+  ggplot(aes(x = date, y = value, color = name)) + 
+  geom_point() + 
+  geom_line() + 
+  facet_grid(rows = vars(name), scales = "free_y")
+
+
+```
+
+
+
+
+pairs plot 
+```{r pairs-plot, out.width="100%"}
+ropec <- read_ropec_data() %>% 
+  mutate(n_avg = (n1_avg+n2_avg)/2 ) %>%
+  mutate(n1_high = (n1_avg+n1_stdev) ) %>%
+  mutate(n2_high = (n2_avg+n2_stdev)) %>%
+  mutate(n_high = (n1_high+n2_high)/2 ) #%>%
+  #mutate(roll_mean = rollmean(x = n1_, 7, na.pad = T, align = "right")) 
+
+df_shedding_ropec <- 
+df_shedding_onset %>%
+  full_join(ropec, by = "date") 
+
+
+df_shedding_ropec %>%
+  GGally::ggpairs()
+
+
+```
+
+```{r line-plot, out.width="100%"}
+
+df_shedding_ropec %>% pivot_longer(., 2:ncol(.),   values_drop_na = T) %>% 
+  ggplot(aes(x = date, color = name, y = value))+ geom_point()+ geom_line() + facet_grid(rows = vars(name), scales = "free_y")
+
+```
+
+
+
+Build a single linnear model
+```{r model, out.width="100%"}
+
+mdl_ln_n <- 
+df_shedding_ropec %>% 
+  glm(data = .,formula = n_case ~ n_avg) 
+
+mdl_ln_shed <- 
+df_shedding_ropec %>% 
+  glm(data = .,formula = shedding_case ~ n_avg) 
+
+mdl_ln_n %>% summary()
+```
+
+```{r plot-model}
+df_shedding_ropec %>% 
+  ggplot(aes(x = n_avg, y = shedding_case, color = date)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  scale_color_continuous(type = "viridis")
+```
+

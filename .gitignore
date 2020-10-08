@@ -37,4 +37,13 @@ data/
 
 # Ignore All (xlsx) files
 *.xlsx
+*.xlsm
 *.xls
+
+
+#ignore power point
+*.pptx
+*.ppt
+
+
+.Rproj.user
