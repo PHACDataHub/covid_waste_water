@@ -228,7 +228,7 @@ mdl_ln_shed <-
 df_shedding_ropec %>% 
   glm(data = .,formula = shedding_case ~ n_avg) 
 
-mdl_ln_n %>% summary()
+mdl_ln_shed %>% summary()
 ```
 
 ```{r plot-model}

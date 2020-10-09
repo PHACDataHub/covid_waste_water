@@ -16,21 +16,27 @@ packages.get(c(
   "readxl",
   "lubridate"
 ))
-
 DATA_DIR = "data"
+
+
+
 
 
 read_ropec_data <- function(
   dir = DATA_DIR,
   path = "OPH - City of Ottawa - COVID-19 in Wastewater 2020.09.24 (002).xlsx",
-  sheet = "Data from ROPEC's primary sludg"
+  sheet = "Data from ROPEC's primary sludg",
+  web_url = "https://github.com/Big-Life-Lab/covid-19-wastewater/blob/main/data/Ottawa_Wastewater_Data.csv"
 ){
   #' Read in Ropec Data
   #'
-  #'
-  read_xlsx(path = file.path(dir, path), sheet = sheet) %>% clean_names() %>%
-    mutate(date = as.Date(date)) %>% 
-    select(date, n1_avg, n1_stdev, n2_avg, n2_stdev)
+  
+  web_url %>% 
+    get_df_from_github() %>%
+# read_xlsx(path = file.path(dir, path), sheet = sheet) %>% clean_names() %>%
+    #rename(date :=  sample_date)
+     mutate(date = as.Date(paste0(date, "-2020") ,"%d-%b-%Y")) %>% 
+     select(date, n1_avg, n1_stdev, n2_avg, n2_stdev)
 }
 
 read_Ottawa_community_data <- function(
@@ -70,7 +76,6 @@ read_HPOC_cases_data <- function(
     filter(pt == pt_use) %>% #count(healthregion, sort = T)
     filter(healthregion == hr_use) 
 }
-
 
 
 

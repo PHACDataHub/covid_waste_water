@@ -20,7 +20,12 @@ library(tidyverse)
 
 
 
-packages_for_utils <- c ("tidyverse", "xfun", "docstring", "rappdirs", "digest")
+packages_for_utils <- c ("tidyverse", 
+                         "xfun", 
+                         "docstring", 
+                         "rappdirs", 
+                         "digest",
+                         "fs")
 
 #' Takes a list of packages and installs them and loads them when needed
 packages.get <- function(list.of.packages, 
@@ -186,6 +191,25 @@ pp <- function(...,
 }
 
 
+get_data_url_from_github_url <- function(web_url){
+  #'
+  #' returns data url from the web url
+  #'
+  web_url %>% 
+    gsub(pattern = "^https://github.com", replacement = "") %>%
+    gsub(pattern = "/blob/", replacement = "/") %>%
+    paste0("https://raw.githubusercontent.com", .)
+    
+}
+get_df_from_github <- function(web_url, ...){
+  #'
+  #' Transforms web url for github into a raw url then gets the dataframe that would come from it.
+  #'
+  get_df_from_url(get_data_url_from_github_url(web_url), ...)
+}
+
+
+
 
 
 #url= paste0("file://",path)
@@ -222,9 +246,11 @@ get_df_from_url <- function(url,
   if ( ! file.exists(tmp_fn)){
     paste0("Cache does not exist downloading file ", url) %>% print()
     
-    if ( ! grepl(external_URL_pattern, url))
-      file.copy(from = url, to = tmp_fn, overwrite = T)
-    else
+    if ( ! grepl(external_URL_pattern, url)){
+      fs::file_copy(path = url, new_path = tmp_fn, overwrite = T)
+      Sys.setFileTime(tmp_fn, Sys.time())
+      #file.copy(from = url, to = tmp_fn, overwrite = T)
+    }else
       download.file(url = url, destfile = tmp_fn)
   }
   
@@ -232,9 +258,11 @@ get_df_from_url <- function(url,
   dt_sec = as.numeric(Sys.time() - file.info(tmp_fn)$mtime ,  units="secs")
   if (dt_sec > time_delta_seconds){
     paste0("Cache is ", round(dt_sec,1)," seconds old, downloading file ", url) %>% print()
-    if ( ! grepl(external_URL_pattern, url))
-      file.copy(from = url, to = tmp_fn, overwrite = T)
-    else
+    if ( ! grepl(external_URL_pattern, url)){
+      fs::file_copy(path = url, new_path = tmp_fn, overwrite = T)  
+      Sys.setFileTime(tmp_fn, Sys.time())
+      #file.copy(from = url, to = tmp_fn, overwrite = T)
+    }else
       download.file(url = url, destfile = tmp_fn)
   }
   

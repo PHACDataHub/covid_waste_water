@@ -33,7 +33,7 @@
 
 #Ignore the data dir
 data/
-
+lit/
 
 # Ignore All (xlsx) files
 *.xlsx
