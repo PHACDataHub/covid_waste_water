@@ -19,8 +19,9 @@ packages.get(c(
 DATA_DIR = "data"
 
 
-
-
+# 
+# "https://github.com/Big-Life-Lab/covid-19-wastewater/blob/main/data/wastewater_virus.csv"
+# "https://github.com/Big-Life-Lab/covid-19-wastewater/blob/main/data/wastewater_site.csv"
 
 read_ropec_data <- function(
   dir = DATA_DIR,
@@ -189,10 +190,32 @@ do_impute_on_cols <- function(df = read_HPOC_cases_data(),  col_nms = c("onsetda
 
 
 
+adjust_case_by_positive_rate_vec <- function(cases, pos_rate){
+  #' 
+  #' reuturn vector when given 2 matching vectors
+  #' https://covid19-projections.com/estimating-true-infections/
+  #' 
+  #' 
+  #' 
+  cases * case_multiplyer(pos_rate)
+}
 
-adjust_case_by_positive_rate <- function(df2, tests){
+case_multiplyer <-  function(pos_rate){
+  #' 
+  #' reuturn vector when given 2 matching vectors
+  #' https://covid19-projections.com/estimating-true-infections/
+  #' 
+  #' 
+  #'   
+  16 * (pos_rate)^(0.5) + 2.5
+}
+
+
+#df = df2_b
+adjust_case_by_positive_rate <- function(df, tests, 
+                                         cols_2_adjust = c("labspecimencollectiondate1_imputed","onsetdate_imputed", "postitive_tests")){
   #'
-  #' returns df2 with an added column case multiplier
+  #' returns df with an added column case multiplier
   #' https://covid19-projections.com/estimating-true-infections/
   #'    
   #
@@ -204,18 +227,90 @@ adjust_case_by_positive_rate <- function(df2, tests){
     mutate(percet_positive = postitive_tests/ test) %>% 
     select(date , percet_positive)# %>% pull(percet_positive) %>% plot()
   
-  
-  df2 %>% 
-    filter(! is.na(labspecimencollectiondate1_imputed)) %>% 
-    count(labspecimencollectiondate1_imputed) %>%
-    rename(date := labspecimencollectiondate1_imputed, 
-           n_lab_collect_impute  := n) %>% 
+  df %>% 
     full_join(tests2, by = "date") %>% 
-    mutate(case_estimate = n_lab_collect_impute * (16 * (percet_positive)^(0.5) + 2.5) ) %>%
-    mutate(case_multiplier =  case_estimate / n_lab_collect_impute ) %>% 
-    rename(labspecimencollectiondate1_imputed := date) %>% 
-    select(labspecimencollectiondate1_imputed, case_multiplier) %>% 
-    left_join(df2, ., by = "labspecimencollectiondate1_imputed")
+    mutate_at(., cols_2_adjust, adjust_case_by_positive_rate_vec, pos_rate = .$percet_positive) %>% 
+    select_at(cols_2_adjust) %>% 
+    bind_cols(df %>% select(-cols_2_adjust), .) %>% 
+    select(c("date",cols_2_adjust))
+    #mutate(case_multiplier =  case_estimate / n_lab_collect_impute ) %>%           
+              
+              
+  #             
+  #             function(x, percet_positive){x * (16 * (percet_positive)^(0.5) + 2.5)} , percet_positive = percet_positive  ) %>%
+  # 
+  #   cols_2_adjust
+  # 
+  # df %>% 
+  #   filter(! is.na(labspecimencollectiondate1_imputed)) %>% #select(labspecimencollectiondate1_imputed) 
+  #   count(labspecimencollectiondate1_imputed) %>%
+  #   rename(date := labspecimencollectiondate1_imputed, 
+  #          n_lab_collect_impute  := n) %>% 
+  #   full_join(tests2, by = "date") %>% 
+  #   mutate(case_estimate = n_lab_collect_impute * (16 * (percet_positive)^(0.5) + 2.5) ) %>%
+  #   
+  #   rename(labspecimencollectiondate1_imputed := date) %>% 
+  #   select(labspecimencollectiondate1_imputed, case_multiplier) %>% 
+  #   left_join(df, ., by = "labspecimencollectiondate1_imputed")
+}
+
+#df <- df3
+#df %>% colnames()
+
+
+get_shedding_vec <- function(cases, shedding_amount){
+  #' 
+  #' reuturn vector when given 2 matching vectors
+  #' 
+  #' 
+  #' 
+  cases * shedding_amount
+}
+
+get_shedding <- function(df, 
+                         cols_2_adjust = colnames(df)[colnames(df) != "date"],
+                         virus_stool_weeks_after_onset = c(5.975077881619939
+                             , 7.218068535825546
+                             , 7
+                             , 9.965732087227416
+                             , 2.0498442367601246
+                             , 1.0249221183800623
+                             , 1.0249221183800623)){
+  df_shedding <- 
+  df %>%
+  bind_cols(tibble(name = paste0("week_",1:length(virus_stool_weeks_after_onset)), value = virus_stool_weeks_after_onset) %>% pivot_wider()) %>%
+    pivot_longer(matches("^week_")) %>%
+    mutate(week = as.numeric(gsub(pattern = "week_", replacement = "", x = name))) %>%
+    mutate(date_start = date + 7*(week - 1)) %>%
+    mutate(date_end = date_start + (7*week)-1) %>% #view()
+    # mutate(shedding_infect = n_infect * value,
+    #        shedding_case = n_case * value
+    # ) %>%
+    rename(shedding_amount := value) %>% 
+    select(-date, -name)
+  
+  
+    
+  df_shedding <- 
+    lapply(1:7, function(i){
+      tmp <- df_shedding[["date_start"]] + i - 1 
+      tmp <- tmp %>% as_tibble()
+      colnames(tmp) <- paste0("day_", i)
+      tmp
+    }) %>% as.data.frame() %>% as.tibble() %>% bind_cols(df_shedding, .)  
+  
+  
+  
+  df_shedding_final <-
+    df_shedding %>%
+    select(-date_start, -date_end) %>% 
+    pivot_longer(matches("^day_")) %>% #view()
+    mutate_at(cols_2_adjust, get_shedding_vec, shedding_amount = .$shedding_amount) %>%
+    group_by(value) %>%
+    summarise_at(cols_2_adjust, sum, na.rm = T) %>%
+    rename(date := value) 
+  
+  return(df_shedding_final)
 }
 
 

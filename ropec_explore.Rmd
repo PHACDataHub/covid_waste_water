@@ -68,12 +68,16 @@ Compare HPOC to other data
 ```{r hpoc-vs-possitive-tests}
 tests <- read_Ottawa_community_data()
 
-
+df2_b <- 
 df2 %>% 
     select(matches("onsetdate"), matches("labspecimencollectiondate")) %>% 
     pivot_longer(., 1:ncol(.)) %>% rename(date := value) %>%
     count(name, date) %>% pivot_wider(names_from = "name", values_from = n, values_fill = 0) %>% 
-    full_join(tests %>% select(date, postitive_tests), by = "date") %>% 
+    full_join(tests %>% select(date, postitive_tests), by = "date") 
+
+
+
+df2_b %>% 
     pivot_longer(., 2:ncol(.)) %>% 
     group_by(name) %>% 
     arrange(date) %>%
@@ -90,14 +94,19 @@ Adjust by positive test rate
 ###################
 # adjust for tests
 tests <- read_Ottawa_community_data()
-df3 <- df2 %>% adjust_case_by_positive_rate(tests = tests)
 
 
-p1 <- df3 %>% 
+tests2 <- 
+  tests %>% 
+  mutate(case_multiplier = case_multiplyer(postitive_tests/100)) 
+
+
+
+p1 <- tests2 %>% 
   ggplot(aes(x = case_multiplier)) + geom_histogram() + coord_flip()
 
-p2 <- df3 %>%
-  ggplot(aes(x = onsetdate_imputed, y = case_multiplier)) + geom_point() + geom_smooth()
+p2 <- tests2 %>%
+  ggplot(aes(x = date, y = case_multiplier)) + geom_point() + geom_smooth()
 
 plot_grid(p2, p1, labels = c('A', 'B'))
 
@@ -106,63 +115,108 @@ plot_grid(p2, p1, labels = c('A', 'B'))
 
 
 
+Positive adjust
+```{r pos_adj}
+
+df3 <- df2_b %>% 
+  adjust_case_by_positive_rate(tests = tests, 
+                               cols_2_adjust = c(#"labspecimencollectiondate1", 
+                                                 "labspecimencollectiondate1_imputed", 
+                                                 #"onsetdate",
+                                                 "onsetdate_imputed",
+                                                 "postitive_tests" )
+                               ) %>% 
+  rename_at(vars(-date), ~ paste0('pos_Adj_', .)) %>%
+  bind_cols(df2_b %>% select(-date)) %>% 
+  select(-date) %>%
+  replace(is.na(.), 0) %>% 
+  bind_cols(df2_b %>% select(date), .) %>% 
+  select(date, 
+         matches("pos_Adj_"), 
+         postitive_tests, 
+         pos_Adj_postitive_tests,
+         matches("_imputed")
+         )
+
+
+df3 %>% 
+  pivot_longer(.,2:ncol(.)) %>% 
+  mutate(IS_ADJUST = grepl(pattern = "^pos_Adj", x = name)) %>%
+  mutate(TYP = gsub(pattern = "^pos_Adj_", replacement = "", x = name)) %>%
+  ggplot(aes(x = date, y = value, color = TYP)) + 
+  geom_point() + 
+  geom_line()  +
+  facet_grid(cols = vars(IS_ADJUST), rows = vars(TYP))
+```
+
+
 Calculate shedding
 ```{r account-for-shedding}
-df_onset <-
-  df3 %>%
-  filter(! is.na(onsetdate_imputed)) %>%
-  group_by(onsetdate_imputed) %>%
-  summarise(
-    n_infect = sum(case_multiplier, na.rm = T),
-    n_case = n()) %>%
-#  count(onsetdate_imputed) %>%
-  rename(date := onsetdate_imputed
-         )
+
+# df_counts <-
+#   df3 %>%
+#   select(-date) %>%
+#    replace(is.na(.), 0) #%>%
+#   bind_cols(df3 %>% select(date), .)
+#   filter(! is.na(onsetdate_imputed)) %>%
+#   group_by(onsetdate_imputed) %>%
+#   summarise(
+#     n_infect = sum(case_multiplier, na.rm = T),
+#     n_case = n()) %>%
+# #  count(onsetdate_imputed) %>%
+#   rename(date := onsetdate_imputed
+#          )
 
 #p1 <- df_onset %>% ggplot(aes(x = date, y = n)) + geom_point() + geom_line()
 
 
-virus_stool_weeks_after_onset <-
-  c(5.975077881619939
-    , 7.218068535825546
-    , 7
-    , 9.965732087227416
-    , 2.0498442367601246
-    , 1.0249221183800623
-    , 1.0249221183800623)
-
-
-
 df_shedding <-
-  df_onset %>%
-  bind_cols(tibble(name = paste0("week_",1:length(virus_stool_weeks_after_onset)), value = virus_stool_weeks_after_onset) %>% pivot_wider()) %>%
-  pivot_longer(matches("^week_")) %>%
-  mutate(week = as.numeric(gsub(pattern = "week_", replacement = "", x = name))) %>%
-  mutate(date_start = date + 7*(week - 1)) %>%
-  mutate(date_end = date_start + (7*week)-1) %>%
-  mutate(shedding_infect = n_infect * value,
-         shedding_case = n_case * value
-         ) %>%
-  select(date_start, date_end, shedding_infect, shedding_case)
-
-#df_shedding[paste0("day_",i)] <<-
-df_shedding <- 
-lapply(1:7, function(i){
-    tmp <- df_shedding[["date_start"]] + i - 1 
-    tmp <- tmp %>% as_tibble()
-    colnames(tmp) <- paste0("day_", i)
-    tmp
-}) %>% as.data.frame() %>% as.tibble() %>% bind_cols(df_shedding, .)
-
-df_shedding_onset <-
-  df_shedding %>%
-  pivot_longer(matches("^day_")) %>%
-  group_by(value) %>%
-  summarise(shedding_infect = sum(shedding_infect, na.rm = T), 
-            shedding_case = sum(shedding_case, na.rm = T)) %>%
-  rename(date := value) %>%
-  full_join(df_onset)
-
+  df3 %>% get_shedding()
+# 
+# virus_stool_weeks_after_onset <-
+#   c(5.975077881619939
+#     , 7.218068535825546
+#     , 7
+#     , 9.965732087227416
+#     , 2.0498442367601246
+#     , 1.0249221183800623
+#     , 1.0249221183800623)
+# 
+# 
+# 
+# df_shedding <-
+#   df_onset %>%
+#   bind_cols(tibble(name = paste0("week_",1:length(virus_stool_weeks_after_onset)), value = virus_stool_weeks_after_onset) %>% pivot_wider()) %>%
+#   pivot_longer(matches("^week_")) %>%
+#   mutate(week = as.numeric(gsub(pattern = "week_", replacement = "", x = name))) %>%
+#   mutate(date_start = date + 7*(week - 1)) %>%
+#   mutate(date_end = date_start + (7*week)-1) %>%
+#   mutate(shedding_infect = n_infect * value,
+#          shedding_case = n_case * value
+#          ) %>%
+#   select(date_start, date_end, shedding_infect, shedding_case)
+# 
+# #df_shedding[paste0("day_",i)] <<-
+# df_shedding <- 
+# lapply(1:7, function(i){
+#     tmp <- df_shedding[["date_start"]] + i - 1 
+#     tmp <- tmp %>% as_tibble()
+#     colnames(tmp) <- paste0("day_", i)
+#     tmp
+# }) %>% as.data.frame() %>% as.tibble() %>% bind_cols(df_shedding, .)
+# 
+# 
+# 
+# 
+# df_shedding_onset <-
+#   df_shedding %>%
+#   pivot_longer(matches("^day_")) %>%
+#   group_by(value) %>%
+#   summarise(shedding_infect = sum(shedding_infect, na.rm = T), 
+#             shedding_case = sum(shedding_case, na.rm = T)) %>%
+#   rename(date := value) %>%
+#   full_join(df_onset)
+# 
 
 
 # df_shedding_onset <- 
@@ -175,12 +229,16 @@ df_shedding_onset <-
 
 
 
-df_shedding_onset %>% #ggplot(aes(x = date, y = shedding)) + geom_point() + geom_line()
-  pivot_longer(cols = c("shedding_infect", "shedding_case", "n_infect", "n_case")) %>% 
+df_shedding %>% #ggplot(aes(x = date, y = shedding)) + geom_point() + geom_line()
+  pivot_longer(., cols = 2:ncol(.)) %>% 
+  mutate(IS_ADJUST = grepl(pattern = "^pos_Adj", x = name)) %>%
+  mutate(TYP = gsub(pattern = "^pos_Adj_", replacement = "", x = name)) %>%  
   ggplot(aes(x = date, y = value, color = name)) + 
   geom_point() + 
   geom_line() + 
-  facet_grid(rows = vars(name), scales = "free_y")
+  facet_grid(cols = vars(IS_ADJUST), rows = vars(TYP))
+  #facet_grid(rows = vars(name), scales = "free_y")
+
 
 
 ```
@@ -198,20 +256,41 @@ ropec <- read_ropec_data() %>%
   #mutate(roll_mean = rollmean(x = n1_, 7, na.pad = T, align = "right")) 
 
 df_shedding_ropec <- 
-df_shedding_onset %>%
+df_shedding %>%
   full_join(ropec, by = "date") 
 
-
+c_nms <- df_shedding_ropec %>% colnames() %>% gsub(pattern = "_", replacement = "\n", x = .)
 df_shedding_ropec %>%
+  setNames(., c_nms) %>% 
   GGally::ggpairs()
 
 
 ```
 
+```{r corr-mat}
+c_nms <- df_shedding_ropec %>% colnames() %>% gsub(pattern = "_", replacement = "\n", x = .)
+
+df_shedding_ropec %>% 
+  select_if(is.numeric) %>%
+  setNames(., c_nms) %>% 
+  cor_pmat() %>% 
+  ggcorrplot()
+  
+```
+
+
+
 ```{r line-plot, out.width="100%"}
 
-df_shedding_ropec %>% pivot_longer(., 2:ncol(.),   values_drop_na = T) %>% 
-  ggplot(aes(x = date, color = name, y = value))+ geom_point()+ geom_line() + facet_grid(rows = vars(name), scales = "free_y")
+df_shedding_ropec %>% 
+  pivot_longer(., 2:ncol(.), values_drop_na = T) %>% 
+    mutate(IS_ADJUST = grepl(pattern = "^pos_Adj", x = name)) %>%
+  mutate(TYP = gsub(pattern = "^pos_Adj_", replacement = "", x = name)) %>%  
+  ggplot(aes(x = date, color = name, y = value))+ 
+  geom_point()+ 
+  geom_line() + 
+  #facet_grid(cols = vars(IS_ADJUST), rows = vars(TYP), scales = "free_y")
+  facet_grid(rows = vars(name), scales = "free_y")
 
 ```
 
@@ -222,18 +301,14 @@ Build a single linnear model
 
 mdl_ln_n <- 
 df_shedding_ropec %>% 
-  glm(data = .,formula = n_case ~ n_avg) 
-
-mdl_ln_shed <- 
-df_shedding_ropec %>% 
-  glm(data = .,formula = shedding_case ~ n_avg) 
+  glm(data = .,formula = onsetdate_imputed ~ n_avg) 
 
 mdl_ln_shed %>% summary()
 ```
 
 ```{r plot-model}
 df_shedding_ropec %>% 
-  ggplot(aes(x = n_avg, y = shedding_case, color = date)) +
+  ggplot(aes(x = n_avg, y = onsetdate_imputed, color = date)) +
   geom_point() +
   geom_smooth(method = "lm") +
   scale_color_continuous(type = "viridis")
