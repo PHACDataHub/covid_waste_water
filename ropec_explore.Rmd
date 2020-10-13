@@ -153,79 +153,10 @@ df3 %>%
 Calculate shedding
 ```{r account-for-shedding}
 
-# df_counts <-
-#   df3 %>%
-#   select(-date) %>%
-#    replace(is.na(.), 0) #%>%
-#   bind_cols(df3 %>% select(date), .)
-#   filter(! is.na(onsetdate_imputed)) %>%
-#   group_by(onsetdate_imputed) %>%
-#   summarise(
-#     n_infect = sum(case_multiplier, na.rm = T),
-#     n_case = n()) %>%
-# #  count(onsetdate_imputed) %>%
-#   rename(date := onsetdate_imputed
-#          )
-
-#p1 <- df_onset %>% ggplot(aes(x = date, y = n)) + geom_point() + geom_line()
 
 
 df_shedding <-
   df3 %>% get_shedding()
-# 
-# virus_stool_weeks_after_onset <-
-#   c(5.975077881619939
-#     , 7.218068535825546
-#     , 7
-#     , 9.965732087227416
-#     , 2.0498442367601246
-#     , 1.0249221183800623
-#     , 1.0249221183800623)
-# 
-# 
-# 
-# df_shedding <-
-#   df_onset %>%
-#   bind_cols(tibble(name = paste0("week_",1:length(virus_stool_weeks_after_onset)), value = virus_stool_weeks_after_onset) %>% pivot_wider()) %>%
-#   pivot_longer(matches("^week_")) %>%
-#   mutate(week = as.numeric(gsub(pattern = "week_", replacement = "", x = name))) %>%
-#   mutate(date_start = date + 7*(week - 1)) %>%
-#   mutate(date_end = date_start + (7*week)-1) %>%
-#   mutate(shedding_infect = n_infect * value,
-#          shedding_case = n_case * value
-#          ) %>%
-#   select(date_start, date_end, shedding_infect, shedding_case)
-# 
-# #df_shedding[paste0("day_",i)] <<-
-# df_shedding <- 
-# lapply(1:7, function(i){
-#     tmp <- df_shedding[["date_start"]] + i - 1 
-#     tmp <- tmp %>% as_tibble()
-#     colnames(tmp) <- paste0("day_", i)
-#     tmp
-# }) %>% as.data.frame() %>% as.tibble() %>% bind_cols(df_shedding, .)
-# 
-# 
-# 
-# 
-# df_shedding_onset <-
-#   df_shedding %>%
-#   pivot_longer(matches("^day_")) %>%
-#   group_by(value) %>%
-#   summarise(shedding_infect = sum(shedding_infect, na.rm = T), 
-#             shedding_case = sum(shedding_case, na.rm = T)) %>%
-#   rename(date := value) %>%
-#   full_join(df_onset)
-# 
-
-
-# df_shedding_onset <- 
-#   df_shedding %>% 
-#   pivot_longer(matches("^day_")) %>% 
-#   group_by(value) %>%
-#   summarise(shedding = sum(shedding)) %>%
-#   rename(date := value) %>% 
-#   full_join(df_onset) 
 
 
 
@@ -303,7 +234,7 @@ mdl_ln_n <-
 df_shedding_ropec %>% 
   glm(data = .,formula = onsetdate_imputed ~ n_avg) 
 
-mdl_ln_shed %>% summary()
+mdl_ln_n %>% summary()
 ```
 
 ```{r plot-model}

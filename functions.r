@@ -24,10 +24,11 @@ DATA_DIR = "data"
 # "https://github.com/Big-Life-Lab/covid-19-wastewater/blob/main/data/wastewater_site.csv"
 
 read_ropec_data <- function(
-  dir = DATA_DIR,
-  path = "OPH - City of Ottawa - COVID-19 in Wastewater 2020.09.24 (002).xlsx",
-  sheet = "Data from ROPEC's primary sludg",
-  web_url = "https://github.com/Big-Life-Lab/covid-19-wastewater/blob/main/data/Ottawa_Wastewater_Data.csv"
+  #dir = DATA_DIR,
+  #path = "OPH - City of Ottawa - COVID-19 in Wastewater 2020.09.24 (002).xlsx",
+  #sheet = "Data from ROPEC's primary sludg",
+  #web_url = "https://github.com/Big-Life-Lab/covid-19-wastewater/blob/main/data/Ottawa_Wastewater_Data.csv"
+  web_url = "https://github.com/Big-Life-Lab/covid-19-wastewater/blob/main/data/wastewater_virus.csv"
 ){
   #' Read in Ropec Data
   #'
@@ -36,7 +37,11 @@ read_ropec_data <- function(
     get_df_from_github() %>%
 # read_xlsx(path = file.path(dir, path), sheet = sheet) %>% clean_names() %>%
     #rename(date :=  sample_date)
-     mutate(date = as.Date(paste0(date, "-2020") ,"%d-%b-%Y")) %>% 
+     mutate(date = as.Date(paste0(sample_date, "-2020") ,"%d-%b-%Y")) %>% 
+     rename(n1_avg := n1_pmmv_mean
+          , n1_stdev := n1_pmmv_sd
+          , n2_avg := n2_ppmv_mean
+          , n2_stdev := n2_ppm_sd) %>% 
      select(date, n1_avg, n1_stdev, n2_avg, n2_stdev)
 }
 

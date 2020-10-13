@@ -148,6 +148,39 @@ log_epsilon <- function(x ,
 }
 
 
+####################################
+#
+str_kvp <- function(k, v, eq = "="){
+  #' Key Value pair to a string
+  paste(k, eq, v)
+}
+
+
+
+
+####################################
+#
+str_l <- function(x, sep = " , ", front = "(", back = ")", qts ="'", na_replace = "null", use_nms = F, wrap_with_FB = T, ...){
+  #' 
+  #' Takes a vector
+  #'  - Quotes each element with qts
+  #'  - seperates it with sep
+  #'  - then wraps it in front and back
+  
+  #x[is.na(x)] <- na_replace
+  
+  x %>% 
+    str_q(qts = qts, na_replace = na_replace, ...) %>% 
+    {if(use_nms) str_kvp(names(.), .) else .}  %>% 
+    paste0(collapse = sep) %>% 
+    {if(wrap_with_FB) str_w(., begin = front, ending = back, ...) else .}#  %>% 
+  #W(front = front, back = back)
+  
+  
+}
+
+
+
 
 str_w <- function(str, begin = "(", ending = ")", ...){
   #' Wrap a string in brackets
@@ -160,15 +193,24 @@ str_w <- function(str, begin = "(", ending = ")", ...){
   str_q(str, begin = begin, ending = ending , ...)
 }
 
-str_q <- function(str, qt = "'", begin = qt, ending = qt, ...){
+str_q <- function(str, qt = "'", begin = qt, ending = qt, na_replace = "null", escape = T, ...){
   #' wrap a string in some kind of quotes
   #' 
   #' @param str a string for the middle
   #' @param qt a string to put on either side
   #' @param begin default qt
   #' @param ending default qt
-  paste0(begin, str, ending, ... )
+  #paste0(begin, str, ending, ... )
+  
+  ifelse(is.na(str),
+         na_replace, str) %>% 
+    {if(escape) gsub(perl = T, x = ., pattern = "'", replacement = "''") else .}%>% 
+    paste0(begin, ., ending)  
 }
+
+
+
+
 
 
 
