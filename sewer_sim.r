@@ -9,7 +9,7 @@ packages.get(c(
 ))
 
 NUM_PERSONS <- 10^6
-NUM_AREAS_OF_CITY <- sample(3:7, 1)
+NUM_AREAS_OF_CITY <- 3 # sample(3:7, 1)
 
 INF_PROB_MIN = 0.001
 INF_PROB_MAX = 0.05
