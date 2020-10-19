@@ -28,7 +28,8 @@ read_ropec_data <- function(
   #path = "OPH - City of Ottawa - COVID-19 in Wastewater 2020.09.24 (002).xlsx",
   #sheet = "Data from ROPEC's primary sludg",
   #web_url = "https://github.com/Big-Life-Lab/covid-19-wastewater/blob/main/data/Ottawa_Wastewater_Data.csv"
-  web_url = "https://github.com/Big-Life-Lab/covid-19-wastewater/blob/main/data/wastewater_virus.csv"
+  web_url = "https://github.com/Big-Life-Lab/covid-19-wastewater/blob/main/data/wastewater_virus.csv",
+  location_id_filter = "Ottawa-1"
 ){
   #' Read in Ropec Data
   #'
@@ -41,9 +42,39 @@ read_ropec_data <- function(
      rename(n1_avg := n1_pmmv_mean
           , n1_stdev := n1_pmmv_sd
           , n2_avg := n2_ppmv_mean
-          , n2_stdev := n2_ppm_sd) %>% 
+          , n2_stdev := n2_ppmv_sd) %>% 
+    filter(location_id == location_id_filter) %>% 
      select(date, n1_avg, n1_stdev, n2_avg, n2_stdev)
 }
+
+read_netherlands_covid_Wwdata <- funcion(
+  url = "https://data.rivm.nl/covid-19/COVID-19_rioolwaterdata.csv"
+){
+  df <- get_df_from_url(url = url)
+  return(df)
+  # df %>% view_sample()
+  # df %>% 
+  #   group_by(rwzi_awzi_code) %>%
+  #   groups() %>%
+  #   unlist() %>% 
+  #   as.character    
+  # 
+  # df %>% 
+  #   group_by(rwzi_awzi_code, rwzi_awzi_name)   %>% 
+  #   summarise(n = n()) %>%  
+  #   ungroup() %>% 
+  #   arrange(desc(n)) %>% 
+  #   head(7) %>% 
+  #   #sample_n(5) %>% 
+  #   inner_join(df) %>% 
+  #   mutate(rna_per_ml = (rna_per_ml - mean(rna_per_ml, na.rm = T))/sd(rna_per_ml, na.rm = T)) %>%
+  #   
+  #   ggplot(aes(x = date_measurement, y = rna_per_ml, group = rwzi_awzi_name, color = rwzi_awzi_name)) +
+  #   geom_point() +
+  #   #geom_smooth(se = F)
+  #   geom_line() 
+}
+
 
 read_Ottawa_community_data <- function(
   dir = DATA_DIR,
@@ -61,6 +92,34 @@ read_Ottawa_community_data <- function(
 }
 
 
+read_sewage_flow_parameters_hourly <- function(
+  dir = DATA_DIR,
+  path = "UofOData - April1toSep222020 (ROPEC data).xlsx",
+  sheet = "PlantFlowHourly"
+){
+  #' Read in Ottawa sEWAGE FLOW DATA
+  #'
+  #'
+  read_xlsx(path = file.path(dir, path), sheet = sheet) %>% clean_names() %>%
+    mutate(time = lubridate::hour(date_time), 
+           date = lubridate::as_date(date_time)) 
+
+}
+read_sewage_flow_parameters_daily <- function(
+  dir = DATA_DIR,
+  path = "UofOData - April1toSep222020 (ROPEC data).xlsx",
+  sheet = "PlantFlowDaily"
+){
+  #' Read in Ottawa sEWAGE FLOW DATA
+  #'
+  #'
+  read_xlsx(path = file.path(dir, path), sheet = sheet) %>% clean_names() %>%
+    mutate(date = lubridate::as_date(date)) 
+  
+}
+
+
+
 
 
 
@@ -68,16 +127,23 @@ read_HPOC_cases_data <- function(
   dir = "//Ncr-a_irbv2s/IRBV2/PHAC/IDPCB/CIRID/VIPS-SAR/EMERGENCY PREPAREDNESS AND RESPONSE HC4/EMERGENCY EVENT/WUHAN UNKNOWN PNEU - 2020/DATA AND ANALYSIS/SAS_Analysis/Domestic data",
   fn_pattern = "qry_allcases[ ]\\d\\d-\\d\\d-\\d\\d\\d\\d_NEW_FORMAT.xlsx",
   path = sort(list.files(dir,  fn_pattern, full.names = TRUE), decreasing = T)[1],
-  pt_use = "on",
-  hr_use = "city of ottawa 2251"
+  pt_use = "ON",
+  hr_use = "CITY OF OTTAWA (2251)"
 ){
   #' Read in HPOC cases data
   #'
   df <- get_df_from_url(url = path) %>% 
         clean_names() 
-    
+  
   df %>% 
-    select(onsetdate, reporteddate, labspecimencollectiondate1, labtestresultdate1, phacreporteddate, healthregion, pt, exposure_cat, age) %>% 
+    rename(onsetdate:= onset_date, 
+           reporteddate := reported_date,
+           labspecimencollectiondate1 := lab_specimen_collection_date1,
+           labtestresultdate1 := lab_test_result_date1,
+           phacreporteddate := phac_reported_date,
+           healthregion := health_region,
+           ) %>% 
+    select(onsetdate, reporteddate, labspecimencollectiondate1, labtestresultdate1, phacreporteddate, healthregion, pt, exposure_cat, age) %>% #view_sample()
     mutate_if(function(x) inherits(x, "POSIXct") , as.Date) %>%
     filter(pt == pt_use) %>% #count(healthregion, sort = T)
     filter(healthregion == hr_use) 

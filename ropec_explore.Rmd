@@ -1,6 +1,6 @@
 ---
-title: "Covid ROPEC"
-author: "Data Hub"
+title: "Covid ROPEC Data"
+author: "Data Partnerships and Innovation Hub"
 date: "05/10/2020"
 output: html_document
 ---
@@ -9,43 +9,66 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE,  warning=FALSE, message=FALSE)
 ```
 
-## R Markdown
+## Covid-19 data from Robert O. Pickard Environmental Centre,
 
-This file is looking at the ROPEC Covid Data along side the HPOC cases database trying to develop a relationship between the two.
+This file is looking at the ROPEC Covid Data along side the HPOC Covid cases database trying to develop a relationship between the two.
 
+Load source files
 
-Load source files and the HPOC DATA
-
-```{r read-cases, message=FALSE, results='hide'}
+```{r libraries, message=FALSE, results='hide'}
 source(file.path("utils.r"))
 source(file.path("functions.r"))
 
 packages.get(c(
   "cowplot",
-  "scales"
+  "scales",
+  "ggpubr"
 ))
 
+#theme_set(new = theme_minimal())
 
+```
+
+
+## Read HPOC Data
+
+```{r read-cases, message=FALSE, results='hide'}
 df <- read_HPOC_cases_data()
 
 summary(df)
 ```
 
-Take a look at some of the NA data
+## Take a look at some of the NA data
 
 ```{r check-na}
 sapply(df, function(x) sum(is.na(x))/length(x))
 ```
 
+
+## Imput Deltas
+
+Since there are so many records with missing days we impute the dates that we can.
+We calculate the diffrences between all dates for cases that have multiple dates
+
 ```{r delta_times}
 df %>% impute_deltas() %>% 
-  ggplot(aes(x = onsetdate_2_labspecimencollectiondate1)) + 
-  geom_density() +
+  select(matches("_2_")) %>%
+  pivot_longer(1:ncol(.), values_drop_na  = T) %>%
+  separate(col = name, into = c("from", "two", "to"),remove =F) %>%
+  ggplot(aes(x = value, group = name, fill = to)) + 
+  geom_density(alpha = 0.5) +
+  facet_grid(cols = vars(from), rows = vars(to)) +
   scale_x_continuous(limits = c(-5, 25)) +
-  geom_vline(xintercept = 0, color = "red")
+  geom_vline(xintercept = 0, color = "red") +
+  labs(title = "Time between dates in a Covid-19 Case", x = "days")
 ```
 
-Impute the data
+
+
+## Impute the data
+
+We imupute the dates where we do not know using the dates we do know.
+
 ```{r imput-data}
 df2 <- df %>% do_impute_on_cols()
 
@@ -55,15 +78,26 @@ df2 <- df %>% do_impute_on_cols()
 df2 %>% 
    select(matches("onsetdate"), matches("labspecimencollectiondate")) %>% 
    pivot_longer(., 1:ncol(.)) %>% 
+   separate(name, c("date_type", "imputed"), remove = F) %>% 
+   replace_na(list(imputed = "not imputed")) %>% 
    arrange(value) %>% 
-   count(name, value) %>% 
+   count(name, value, date_type, imputed) %>% 
    group_by(name) %>% 
    mutate(n_cum = cumsum(n)) %>%
-  ggplot(aes(x = value, y = n_cum, color = name)) + geom_point() #+theme(legend.position="bottom")
+   ggplot(aes(x = value, y = n_cum, color = imputed)) + 
+   geom_point() +
+   geom_line() +
+   facet_grid(rows = vars(date_type)) +
+   labs(x = "date", 
+        y = "Number of Cases", 
+        title = "Cummulative number of cases.", 
+        subtitle = " showing the need for imputation")
 
 ```
 
-Compare HPOC to other data 
+## Compare HPOC to other data 
+
+
 
 ```{r hpoc-vs-possitive-tests}
 tests <- read_Ottawa_community_data()
@@ -79,17 +113,29 @@ df2 %>%
 
 df2_b %>% 
     pivot_longer(., 2:ncol(.)) %>% 
+    separate(name, c("date_type", "imputed"), remove = F) %>% 
+    replace_na(list(imputed = "not imputed")) %>%   
     group_by(name) %>% 
     arrange(date) %>%
     replace_na(list(value = 0)) %>% 
     mutate(n_cum = cumsum(value)) %>%
-  ggplot(aes(x = date, color = name, y = n_cum)) + geom_point()
+    ggplot(aes(x = date, color = imputed, y = n_cum, group = name)) + 
+    geom_point() + 
+    geom_line() +
+    #facet_grid(rows = vars(date_type)) +
+    labs(x = "date", 
+        y = "Number of Cases", 
+        title = "Cummulative number of cases.", 
+        subtitle = "showing there is a diffrence between the testing data and the HPOC data that is not taken into account by imputation")  
 
 
 ```
 
 
-Adjust by positive test rate
+## Adjust by positive test rate
+
+We can adjust the cases by the possitive rate.
+
 ```{r case-multiplier}
 ###################
 # adjust for tests
@@ -103,19 +149,59 @@ tests2 <-
 
 
 p1 <- tests2 %>% 
-  ggplot(aes(x = case_multiplier)) + geom_histogram() + coord_flip()
+  ggplot(aes(x = case_multiplier)) + geom_histogram() + coord_flip()  +
+  labs(y = "", x = "counts")
 
 p2 <- tests2 %>%
-  ggplot(aes(x = date, y = case_multiplier)) + geom_point() + geom_smooth()
+  ggplot(aes(x = date, y = case_multiplier)) + geom_point() + geom_smooth() +
+  labs(y = "Case Multiplier", x = "Date", title = "Case multiplier calcuated based on the possitivity rate.")
 
-plot_grid(p2, p1, labels = c('A', 'B'))
+plot_grid(p2, p1, labels = c('', '') ) 
 
 
 ```
 
 
 
-Positive adjust
+## DIurnal Cycle at ROPEC
+
+Flows at the waste water treatment plant will change over the course of the day as well as over the course of the year and during rain events.
+
+```{r hourly_flow}
+ropec_hourly_flow <- read_sewage_flow_parameters_hourly()
+
+ropec_hourly_flow %>% pivot_longer(cols = c("plant_influent_flow_mld" , "primary_sludge_flow_m3")) %>%
+  mutate(name = gsub("_", " ", name)) %>% 
+  ggplot(aes(x = time, y = value, color = date, group = date)) +
+  geom_point() +
+  geom_line() +
+  facet_grid(row = vars(name), scales = "free_y") +
+  labs(x = "Hour", title = "ROPEC diurnal flow and sludge cycle", subtitle = "small daily variation in influent and very little variation in sludge")
+  
+
+```
+
+
+```{r daily_flow}
+ropec_daily_flow <- read_sewage_flow_parameters_daily()
+
+ropec_daily_flow %>% 
+  pivot_longer(cols = 2:ncol(.)) %>% 
+  mutate(name = gsub("_", " ", name)) %>%   
+  ggplot(aes(x = date, y = value, color = name)) +
+  geom_point() +
+  geom_smooth() +
+  facet_grid(rows = vars(name), scales = "free_y") +
+  guides(color = F) + 
+  labs(title = "ROPEC Influent Flow and sludge volume over time",subtitle = "Shows influent was higher in the spring")
+  
+
+```
+
+## Adjust cases for Infections
+
+Here we estimate infections from cases directly using an adjustment.
+
 ```{r pos_adj}
 
 df3 <- df2_b %>% 
@@ -141,16 +227,24 @@ df3 <- df2_b %>%
 
 df3 %>% 
   pivot_longer(.,2:ncol(.)) %>% 
-  mutate(IS_ADJUST = grepl(pattern = "^pos_Adj", x = name)) %>%
+  mutate(IS_ADJUST = ifelse(grepl(pattern = "^pos_Adj", x = name), "Adjusted for Possitive Test Rate", "Not Adjusted")) %>%
   mutate(TYP = gsub(pattern = "^pos_Adj_", replacement = "", x = name)) %>%
+  mutate(TYP = gsub(pattern = "_", replacement = "\n", x = TYP)) %>%
+  #separate(TYP, c())
   ggplot(aes(x = date, y = value, color = TYP)) + 
   geom_point() + 
   geom_line()  +
-  facet_grid(cols = vars(IS_ADJUST), rows = vars(TYP))
+  facet_grid(cols = vars(IS_ADJUST), rows = vars(TYP)) +
+  guides(color = F) + 
+  labs(title = "Clinical Metrics to consider against Wastewater concentrations.", y = "Counts")
 ```
 
 
-Calculate shedding
+## Calculate shedding
+
+Literature claims mean shedding happens typically for 17 days after onset in the mean person.
+Other Literature claims shedding peeks in week 4 after onset.
+
 ```{r account-for-shedding}
 
 
@@ -160,25 +254,28 @@ df_shedding <-
 
 
 
+
 df_shedding %>% #ggplot(aes(x = date, y = shedding)) + geom_point() + geom_line()
   pivot_longer(., cols = 2:ncol(.)) %>% 
-  mutate(IS_ADJUST = grepl(pattern = "^pos_Adj", x = name)) %>%
-  mutate(TYP = gsub(pattern = "^pos_Adj_", replacement = "", x = name)) %>%  
-  ggplot(aes(x = date, y = value, color = name)) + 
+  mutate(IS_ADJUST = ifelse(grepl(pattern = "^pos_Adj", x = name), "Adjusted for Possitive Test Rate", "Not Adjusted")) %>%
+  mutate(TYP = gsub(pattern = "^pos_Adj_", replacement = "", x = name)) %>%
+  mutate(TYP = gsub(pattern = "_", replacement = "\n", x = TYP)) %>%
+  ggplot(aes(x = date, y = value, color = TYP)) + 
   geom_point() + 
   geom_line() + 
-  facet_grid(cols = vars(IS_ADJUST), rows = vars(TYP))
+  facet_grid(cols = vars(IS_ADJUST), rows = vars(TYP)) +
+  guides(color = F) + 
+  labs(title = "Clinical Metrics to consider against Wastewater concentrations.", y = "Counts", subtitle = "Shedding adjustment smoothes out the noise in case detection.")
   #facet_grid(rows = vars(name), scales = "free_y")
-
 
 
 ```
 
 
 
+## Cobine Flow Data with Covid Influent Data and Case counts of Ottawa HR
 
-pairs plot 
-```{r pairs-plot, out.width="100%"}
+```{r full-join, out.width="100%"}
 ropec <- read_ropec_data() %>% 
   mutate(n_avg = (n1_avg+n2_avg)/2 ) %>%
   mutate(n1_high = (n1_avg+n1_stdev) ) %>%
@@ -188,60 +285,126 @@ ropec <- read_ropec_data() %>%
 
 df_shedding_ropec <- 
 df_shedding %>%
-  full_join(ropec, by = "date") 
+  full_join(ropec, by = "date")  %>% 
+  full_join(ropec_daily_flow, by = "date")
 
-c_nms <- df_shedding_ropec %>% colnames() %>% gsub(pattern = "_", replacement = "\n", x = .)
+# c_nms <- df_shedding_ropec %>% colnames() %>% gsub(pattern = "_", replacement = "\n", x = .)
+# 
+# 
+# 
+# 
+# df_shedding_ropec %>%
+#   setNames(., c_nms) %>% 
+#   GGally::ggpairs()
+
+
+```
+
+
+# Relationship between flow rate and n1/n2
+
+```{r Flow_covid, out.width="100%"}
+
+of_intrest <- c("plant_influent_flow_mld", "n_avg", "n1_avg", "n2_avg")
+
 df_shedding_ropec %>%
-  setNames(., c_nms) %>% 
-  GGally::ggpairs()
-
+  select(date, of_intrest) %>%
+  pivot_longer(cols = 2:ncol(.), values_drop_na  = T) %>% 
+  mutate(name = gsub(pattern = "_", replacement = " ", x = name)) %>%
+  group_by(name) %>% mutate(value = (value - mean(value, na.rm = T))/ sd(value, na.rm = T)) %>% 
+  ggplot(aes(x = date, y = value, color = name)) + 
+  geom_point() +
+  geom_line() + 
+  labs(title = "Normalized Influent Flow, and Covid Concentration at ROPEC", y = "Normalized Value",  x = "Date")
 
 ```
 
-```{r corr-mat}
-c_nms <- df_shedding_ropec %>% colnames() %>% gsub(pattern = "_", replacement = "\n", x = .)
 
-df_shedding_ropec %>% 
-  select_if(is.numeric) %>%
-  setNames(., c_nms) %>% 
-  cor_pmat() %>% 
-  ggcorrplot()
-  
+```{r Flow_covid_pairs, out.width="100%"}
+
+of_intrest <- c("plant_influent_flow_mld", "n_avg", "n1_avg", "n2_avg")
+
+c_nms <- of_intrest %>% gsub(pattern = "_", replacement = "\n", x = .) %>% c("Date", .)
+
+
+df_shedding_ropec %>%
+  select(date, of_intrest) %>% 
+  filter(! is.na(plant_influent_flow_mld)) %>% 
+  filter(! is.na(n_avg)) %>% 
+  ggplot(aes(x = plant_influent_flow_mld, y = n_avg, color = date)) + 
+  geom_point() +
+  geom_smooth() + 
+  labs(title = "Influent Flow vs Covid Detection", subtitle = "seems to have a limited relationship", x= "Influent Flow", y = "Covid Genom detection")
+
 ```
 
-
+#show time lines for all the data
 
 ```{r line-plot, out.width="100%"}
 
 df_shedding_ropec %>% 
   pivot_longer(., 2:ncol(.), values_drop_na = T) %>% 
-    mutate(IS_ADJUST = grepl(pattern = "^pos_Adj", x = name)) %>%
+  mutate(IS_ADJUST = grepl(pattern = "^pos_Adj", x = name)) %>%
   mutate(TYP = gsub(pattern = "^pos_Adj_", replacement = "", x = name)) %>%  
+  mutate(TYP = gsub(pattern = "_", replacement = " ", x = TYP)) %>%  
+  mutate(name = gsub(pattern = "_", replacement = " ", x = name)) %>%  
   ggplot(aes(x = date, color = name, y = value))+ 
   geom_point()+ 
   geom_line() + 
   #facet_grid(cols = vars(IS_ADJUST), rows = vars(TYP), scales = "free_y")
-  facet_grid(rows = vars(name), scales = "free_y")
+  facet_grid(rows = vars(name), scales = "free_y") + 
+  labs(title = "relevant time series")
 
 ```
 
+## Relationship between N1 and N2
 
+```{r n-v-n-model, out.width="100%"}
+df_shedding_ropec %>%
+  ggscatter(x = "n1_avg", y = "n2_avg",
+          add = "reg.line",                                 # Add regression line
+          conf.int = TRUE,                                  # Add confidence interval
+          add.params = list(color = "blue",
+                            fill = "lightgray")
+          )+
+  stat_cor(method = "pearson") +
+  labs(title = "Relationship between N1 and N2", x = "n1", y = "n2") 
+
+
+```
 
 Build a single linnear model
 ```{r model, out.width="100%"}
 
+df_shedding_ropec <- 
+  df_shedding_ropec %>% 
+  mutate(onsetdate_imputed_ln = log_epsilon(onsetdate_imputed)) %>% 
+  mutate(n_avg_ln = log_epsilon(n_avg))
+  
+
+
 mdl_ln_n <- 
 df_shedding_ropec %>% 
-  glm(data = .,formula = onsetdate_imputed ~ n_avg) 
+  glm(data = .,formula = onsetdate_imputed ~ n_avg_ln) 
 
 mdl_ln_n %>% summary()
 ```
 
 ```{r plot-model}
-df_shedding_ropec %>% 
-  ggplot(aes(x = n_avg, y = onsetdate_imputed, color = date)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  scale_color_continuous(type = "viridis")
+
+df_shedding_ropec %>%
+  select(date, n_avg,n_avg_ln, onsetdate_imputed_ln, onsetdate_imputed) %>% 
+  filter( ! is.na(n_avg)) %>% 
+  ggscatter(x = "n_avg_ln", y = "onsetdate_imputed",
+          add = "reg.line",                                 # Add regression line
+          conf.int = TRUE,                                  # Add confidence interval
+          add.params = list(color = "blue",
+                            fill = "lightgray")
+          )+
+  stat_cor(method = "pearson") +
+  labs(title = "Relationship Case Counts Covid Concentration in Waste Water", 
+       x = "Covid Concentration in waste Water (ln scale)", y = "Counts of shedding persons") 
+
+
 ```
 

@@ -318,6 +318,25 @@ get_df_from_url <- function(url,
 
 
 
+sample_n_groups = function(grouped_df, size= 5, replace = FALSE, weight=NULL) {
+  #'
+  #' Sample some groups
+  #'
+  grp_var <- grouped_df %>% 
+    groups %>%
+    unlist %>% 
+    as.character
+  random_grp <- grouped_df %>% 
+    summarise() %>% 
+    sample_n(size, replace, weight) %>% 
+    mutate(unique_id = 1:NROW(.))
+  grouped_df %>% 
+    right_join(random_grp, by=grp_var) %>% 
+    group_by_(grp_var) 
+}
+
+
+
 
 seperate_pivot_longer <- function(df, 
                                   key_col, 
